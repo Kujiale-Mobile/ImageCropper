@@ -1,6 +1,6 @@
 //index.js
 //获取应用实例
-const app = getApp()
+const app = getApp();
 
 Page({
   data: {
@@ -21,21 +21,18 @@ Page({
         that.setData({
           image: tempFilePaths,
         });
-      }
-    })
+      },
+    });
   },
-  
-  handleClick: function (e) {
-    if (!this.data.image) {
-      //调起上传
-      this.upload();
-      return;
-    }
+
+  handleClick: function(e) {
+    //调起上传
+    this.upload();
   },
-  handleLoad: function (e) {
-    console.log('load', e)
+  handleLoad: function(e) {
+    console.log('load', e);
   },
-  handleImageLoad: function (e) {
-    console.log('imageLoad', e)
-  }
-})
+  handleImageLoad: function(e) {
+    console.log('imageLoad', e);
+  },
+});
