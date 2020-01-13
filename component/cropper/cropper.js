@@ -112,7 +112,7 @@ Component({
     _flag_cut_touch: false, //是否是拖动裁剪框
     _hypotenuse_length: 0, //双指触摸时斜边长度
     _flag_img_endtouch: false, //是否结束触摸
-    _flag_bright: true, //背景是否亮
+    _flag_bright: false, //背景是否亮
     origin_x: 0.5, //图片旋转中心
     origin_y: 0.5, //图片旋转中心
     _cut_animation: false, //是否开启图片和裁剪框过渡
@@ -197,18 +197,41 @@ Component({
         that.setData(value);
       },
       cutFrameRatio: (value, that) => {
-        let ratio;
-        if (value < WIDTH_PX / that.data.validHeight) {
-          // 最夸张不能超过屏幕区域
-          ratio = WIDTH_PX / that.data.validHeight;
-        } else {
-          ratio = value
+        let ratio = value;
+        if (ratio < WIDTH_PX / that.data.validHeight) {
+          // 裁剪框宽高比 小于 有效范围，意味着更窄，此时高度到最大，计算宽度
+          HEIGHT_PX = that.data.validHeight;
+          WIDTH_PX = HEIGHT_PX * ratio;
+        } else if (ratio > 1) {
+          // 宽 > 高，则拉伸宽度到最大
+          WIDTH_PX = that.data.info.windowWidth * WIDTH_RPX / 750;
         }
+
+        if (that.data.tempRatio === ratio) {
+          return
+        }
+        that.data.tempRatio = ratio;
+
         HEIGHT_PX = WIDTH_PX / ratio;
+        if (HEIGHT_PX > WIDTH_PX) {
+          if (that.data.img_height < that.data.validHeight) {
+            that.data.height = that.data.img_height;
+          } else {
+            that.data.height = that.data.validHeight;
+          }
+        } else {
+          that.data.height = HEIGHT_PX;
+        }
+
+        that.data.width = that.data.height * ratio
+
         that.setData({
           min_height: that.data.min_width / ratio,
+          _scale_x: 0.5,
+          _scale_y: 0.5
           //height: HEIGHT_PX
         })
+        that.setCutCenter();
       }
     }
   },
@@ -310,15 +333,29 @@ Component({
     setCutCenter() {
       let cut_top = (this.data.validHeight - HEIGHT_PX) * 0.5;
       let cut_left = (this.data.info.windowWidth - WIDTH_PX) * 0.5;
+      const updateData = {}
 
-      const updateData = {
-        height: HEIGHT_PX,
-        width: WIDTH_PX,
-        cut_top: cut_top, //截取的框上边距
-        cut_left: cut_left, //截取的框左边距
+      if (Math.round(HEIGHT_PX) >= this.data.validHeight) {
+        // 上下顶格的情况，做个 padding
+        const padding = 10;
+        const height = HEIGHT_PX - 2 * padding;
+        Object.assign(updateData, {
+          height,
+          width: height * WIDTH_PX / HEIGHT_PX,
+          cut_top: cut_top + padding,
+          cut_left,
+        });
+      } else {
+        Object.assign(updateData, {
+          height: HEIGHT_PX,
+          width: WIDTH_PX,
+          cut_top, 
+          cut_left,
+        })
       }
+      
       if (this.data.height < HEIGHT_PX) {
-        const ratio = HEIGHT_PX / this.data.height;
+        const ratio = WIDTH_PX / this.data.width;
         // 图片中心点到上裁剪框四边的
         const centerToCutTop = this.data._img_top - this.data.cut_top;
         const topOffset = centerToCutTop * ratio - centerToCutTop;
@@ -346,7 +383,7 @@ Component({
               _img_left: this.data._img_left - rightOffset
             })
           }
-        } else {
+        } else if (this.data.cut_left > cut_left) {
           if (this.data.cut_top > cut_top) {
             // 右上角
             Object.assign(updateData, {
@@ -722,11 +759,16 @@ Component({
       const realY = parseInt(relativeY * this.data.image_ratio / this.data.scale);
       const realW = parseInt(this.data.width * this.data.image_ratio / this.data.scale);
       const realH = parseInt(this.data.height * this.data.image_ratio / this.data.scale);
+      const imageWidth = parseInt(this.data.img_width * this.data.image_ratio);
+      const imageHeight = parseInt(this.data.img_height * this.data.image_ratio);
+      
       return {
         x: realX,
         y: realY,
         width: realW,
         height: realH,
+        imageWidth,
+        imageHeight,
         initData: {
           scale: this.data.scale,
           _img_top: this.data._img_top,
@@ -840,7 +882,7 @@ Component({
       const scaledImageHeight = this.data.img_height * this.data.scale;
       const scaledImageWidth = this.data.img_width * this.data.scale;
       const topHeight = this.data.cut_top - (this.data._img_top - scaledImageHeight / 2);
-      const leftWidth = this.data.cut_left - (this._img_left - scaledImageWidth / 2);
+      const leftWidth = this.data.cut_left - (this.data._img_left - scaledImageWidth / 2);
 
       if (currentX > cutbox_left4 && currentX < cutbox_right4 && currentY > cutbox_top4 && currentY < cutbox_bottom4) {
         this._moveDuring();
@@ -934,7 +976,7 @@ Component({
           });
         }
         this.setCutCenter();
-      }, 1000)
+      }, 800)
       //清空之前的背景变化延迟函数并添加最新的
       clearTimeout(this.data.TIME_BG);
       this.data.TIME_BG = setTimeout(() => {
@@ -943,7 +985,7 @@ Component({
             _flag_bright: false
           });
         }
-      }, 2000)
+      }, 800)
     },
     //移动中
     _moveDuring() {
